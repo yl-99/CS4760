@@ -1,0 +1,5 @@
+Step 3 Observations- 100% of the process have been adopted by 'init'
+Step 4 Observations- With the sleep(10) fucntion implemented there seems to be less ophan process, as the parent did not finish before the child
+Step 5 Observations- The child process seems to unknown, as it is being set to 0 the whole time. Processes id's are not incrementing as usual by one from process to process
+Step 6 Observations- The child process is still unknown, but the parent process is known, and the proccesses are incrementing by one. Able to execute 100 processes
+Step 7 Observations- Only a couple of times while executing many runs was the parentId known. Other than that there were many oprphan process as well as unknown child processes

@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
    int i, numOfProcesses = 4, numOfChars = 80, sleepTime = 3, numOfIterations;
 
    int option;
-   while ((option = getopt(argc, argv, "h:p:c:s:i")) != -1) // :pcsi
+   while ((option = getopt(argc, argv, "hh:p:c:s:i:")) != -1) // :pcsi
    {
       switch (option)
       {
@@ -19,8 +19,7 @@ int main(int argc, char *argv[])
          return 1;
          break;
       case 'p':
-      fprintf(stderr, "proc %i \n", atoi(optarg));
-         if(optarg != NULL)
+         if (optarg != NULL)
          {
             numOfProcesses = atoi(optarg);
          }
@@ -28,12 +27,10 @@ int main(int argc, char *argv[])
          {
             numOfProcesses = atoi(argv[3]);
          }
-         
-         
+         //  fprintf(stderr, "proc %i \n", numOfProcesses);
          break;
       case 'c':
-       fprintf(stderr, "chars %i \n", numOfChars);
-      if(optarg != NULL)
+         if (optarg != NULL)
          {
             numOfChars = atoi(optarg);
          }
@@ -41,16 +38,21 @@ int main(int argc, char *argv[])
          {
             numOfChars = atoi(argv[3]);
          }
-         
-         fprintf(stderr, "chars %i \n", numOfChars);
+         // fprintf(stderr, "chars %i \n", numOfChars);
          break;
       case 's':
-         sleepTime = atoi(argv[4]);
-         fprintf(stderr, "sleep %i \n", sleepTime);
+         if (optarg != NULL)
+         {
+            sleepTime = atoi(optarg);
+         }
+         //fprintf(stderr, "sleep %i \n", sleepTime);
          break;
       case 'i':
-         numOfIterations = atoi(argv[5]);
-         fprintf(stderr, "iterations %i \n", numOfIterations);
+         if (optarg != NULL)
+         {
+            numOfIterations = atoi(optarg);
+         }
+         // fprintf(stderr, "iterations %i \n", numOfIterations);
          break;
       default:
          //never enters
@@ -64,12 +66,24 @@ int main(int argc, char *argv[])
       return 1;
    }
 
-   for (i = 1; i < numOfProcesses; i++)
+   for (i = 1; i <= numOfProcesses; i++)
+   {
+
       if (childpid = fork())
+      {
          break;
+      }
 
-   fprintf(stderr, "i:%d process ID:%ld parent ID:%ld child ID:%ld\n",
-           i, (long)getpid(), (long)getppid(), (long)childpid);
-
+      for (int x = 0; x < numOfIterations; x++)
+      {
+         wait(sleepTime);
+        // fprintf(stderr, "i:%d process ID:%ld parent ID:%ld child ID:%ld \n", i, (long)getpid(), (long)getppid(), (long)childpid);
+         fprintf(stderr, "i:%d ", i);
+         fprintf(stderr, "process ID:%ld ", (long)getpid());
+         fprintf(stderr, "parent ID:%ld ", (long)getppid());
+         fprintf(stderr, "child ID:%ld \n", (long)childpid);
+      }
+     // fprintf(stderr, "\n");
+   }
    return 0;
 }
