@@ -1,14 +1,17 @@
 master: master.o
-	gcc master.o -o master
+	gcc -std=c11 master.o shared_memory.o -o master
 
 slave: slave.o
-	gcc slave.o -o slave
+	gcc -std=c11 slave.o shared_memory.o -o slave
 
-master.o: master.c config.h
-	gcc -c master.c
+master.o: master.c shared_memory.o config.h
+	gcc -c -std=c11 master.c
 
-slave.o: slave.c config.h
-	gcc -c slave.c
+slave.o: slave.c shared_memory.o config.h
+	gcc -c -std=c11 slave.c
+
+shared_memory.o: shared_memory.c shared_memory.h
+	gcc -c -std=c11 shared_memory.c
 
 clean:
 	rm *.o master slave

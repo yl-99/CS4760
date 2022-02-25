@@ -3,14 +3,15 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <ctype.h>
+#include<string.h>
 #include "config.h"
+#include "shared_memory.h"
 
 void slave();
 
 int main(int argc, char *argv[])
 {
 
-    pid_t childpid = 0;
     int numOfSlaveProc, termTime = 100;
 
     if (argc <= 1) // no input detected from cmd line
@@ -52,8 +53,14 @@ int main(int argc, char *argv[])
                 perror("Error");
                 return 1;
             }
-            fprintf(stderr, "proc %i \n", numOfSlaveProc);
-            fprintf(stderr, "proc %i \n", termTime);
+
+            if (numOfSlaveProc > MAXSLAVEPROC)
+            {
+                fprintf(stderr, "Number of slave processes exceed the allowed about. Slave processes reduced to maximum amount.\n");
+                numOfSlaveProc = MAXSLAVEPROC;
+            }
+            fprintf(stderr, "slaveproc %i \n", numOfSlaveProc);
+            fprintf(stderr, "termtime %i \n", termTime);
             break;
 
         default:
@@ -70,5 +77,54 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    execl("./slave", "./slave","22", NULL);
+    char *memBlock = attachMemoryBlock(FILENAME, BLOCKSIZE); // memory init
+    if (memBlock == NULL)
+    {
+        fprintf(stderr, "error, no block\n");
+        return 1;
+    }
+    else
+    {
+        fprintf(stderr, "block OK\n");
+        bool choosing[numOfSlaveProc];
+        int shmidNum = shmget();
+        int number = (int)shmat(shmid_num, NULL, 0);
+        
+        shmdt(memBlock); //detaches from shmem block
+    }
+
+    FILE *fptr;
+    pid_t childpids[numOfSlaveProc], wpid;
+    int status = 0;
+
+    for (int i = 0; i < numOfSlaveProc; i++)
+    {
+        if ((childpids[i] = fork()) < 0)
+        {
+            break;
+        }
+        else if (childpids[i] == 0) // execution of slave process
+        {
+            char logFile[10];
+            snprintf(logFile, sizeof(char) * 10, "logfile.%i", i); //creating log file
+            fptr = fopen(logFile, "w");
+
+            char slaveProcNumStr[5];
+            sprintf(slaveProcNumStr, "%d", i);
+
+            execl("./slave", "./slave", slaveProcNumStr, NULL); //executing slave
+
+            fclose(fptr);
+        }
+    }
+    while ((wpid = wait(&status)) > 0); // waits for all process to finish
+
+    if (destroyMemoryBlock(FILENAME))
+    {
+        fprintf(stderr, "destroyed %s\n", FILENAME);
+    }
+    else
+    {
+        fprintf(stderr, "no destroyed %s\n", FILENAME);
+    }
 }
