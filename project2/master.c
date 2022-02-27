@@ -3,11 +3,41 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <ctype.h>
-#include<string.h>
+#include <string.h>
 #include "config.h"
-#include "shared_memory.h"
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdbool.h>
+#include <sys/wait.h>
+#include <errno.h>
+#include <time.h>
+#include <signal.h>
 
-void slave();
+// #include "shared_memory.h"
+pid_t childpid;
+extern int errno;
+  bool *choosing;
+    int shmid_choosing;
+    int *number;
+    int shmid_number;
+
+void alarm_handler(int num)
+{
+    write(STDOUT_FILENO, "Terminating proccess\n", 13);
+            kill(childpid, 9);
+            wait(NULL);
+            shmctl(shmid_choosing, IPC_RMID, NULL);
+    shmctl(shmid_number, IPC_RMID, NULL);
+        
+}
+void cntrlC_handler(int num)
+{
+    write(STDOUT_FILENO, "\nProcess Killed\n", 13);
+    kill(childpid,9);
+    shmctl(shmid_choosing, IPC_RMID, NULL);
+    shmctl(shmid_number, IPC_RMID, NULL);
+}
 
 int main(int argc, char *argv[])
 {
@@ -77,54 +107,75 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    char *memBlock = attachMemoryBlock(FILENAME, BLOCKSIZE); // memory init
-    if (memBlock == NULL)
+  
+
+    // shmem init
+    key_t key;
+
+    key = ftok("./master.c", 0);
+    shmid_choosing = shmget(key, sizeof(choosing), 0644 | IPC_CREAT);
+    choosing = shmat(shmid_choosing, NULL, 0);
+    choosing[0] = false;
+    shmdt(choosing);
+    //fprintf(stderr, "%i\n", shmid_choosing);
+
+    key = ftok("./master.c", 1);
+    shmid_number = shmget(key, sizeof(number), 0644 | IPC_CREAT);
+    choosing = shmat(shmid_choosing, NULL, 0);
+    number = shmat(shmid_number, NULL, 0);
+    number[0] = 0;
+    shmdt(number);
+  //  fprintf(stderr, "%i", shmid_choosing);
+
+    if (shmid_number == -1)
     {
-        fprintf(stderr, "error, no block\n");
-        return 1;
-    }
-    else
-    {
-        fprintf(stderr, "block OK\n");
-        bool choosing[numOfSlaveProc];
-        int shmidNum = shmget();
-        int number = (int)shmat(shmid_num, NULL, 0);
-        
-        shmdt(memBlock); //detaches from shmem block
+        fprintf(stderr, "%s", strerror(errno));
     }
 
     FILE *fptr;
-    pid_t childpids[numOfSlaveProc], wpid;
+    pid_t childpid;
+
     int status = 0;
+
+    struct tm *time_info;
+    time_t current_time;
+    char timeString[9]; // space for "HH:MM:SS\0"
+
+    signal(SIGALRM, alarm_handler);
+    signal(SIGINT, cntrlC_handler);
 
     for (int i = 0; i < numOfSlaveProc; i++)
     {
-        if ((childpids[i] = fork()) < 0)
-        {
-            break;
-        }
-        else if (childpids[i] == 0) // execution of slave process
-        {
-            char logFile[10];
-            snprintf(logFile, sizeof(char) * 10, "logfile.%i", i); //creating log file
-            fptr = fopen(logFile, "w");
+        childpid = fork();
+        alarm(termTime);
 
+        if (childpid == 0) // execution of child process
+        {
             char slaveProcNumStr[5];
             sprintf(slaveProcNumStr, "%d", i);
 
-            execl("./slave", "./slave", slaveProcNumStr, NULL); //executing slave
+            char logFile[10];
+            snprintf(logFile, sizeof(char) * 10, "logfile.%i", i); // creating logfile.xx
 
+            fptr = fopen(logFile, "a");
+
+            time(&current_time);
+            time_info = localtime(&current_time); // time info for logfile.xx
+            strftime(timeString, sizeof(timeString), "%H:%M:%S", time_info);
+            fprintf(fptr, "%s Child process %i is executing slave process\n", timeString, i);
             fclose(fptr);
+
+            execl("./slave", "./slave", slaveProcNumStr, NULL); // executing slave process
+            exit(0);
         }
     }
-    while ((wpid = wait(&status)) > 0); // waits for all process to finish
+    for (int i = 0; i < numOfSlaveProc; i++) // waiting for child processes to finish
+    {
+        wait(NULL);
+        fprintf(stderr, "proc %i dne\n", i);
+    }
 
-    if (destroyMemoryBlock(FILENAME))
-    {
-        fprintf(stderr, "destroyed %s\n", FILENAME);
-    }
-    else
-    {
-        fprintf(stderr, "no destroyed %s\n", FILENAME);
-    }
+    fprintf(stderr, "done\n");
+    shmctl(shmid_choosing, IPC_RMID, NULL);
+    shmctl(shmid_number, IPC_RMID, NULL);
 }

@@ -1,8 +1,8 @@
 master: master.o
-	gcc -std=c11 master.o shared_memory.o -o master
+	gcc -std=c11 master.o -o master
 
 slave: slave.o
-	gcc -std=c11 slave.o shared_memory.o -o slave
+	gcc -std=c11 slave.o -o slave
 
 master.o: master.c shared_memory.o config.h
 	gcc -c -std=c11 master.c
