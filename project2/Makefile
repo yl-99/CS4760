@@ -14,4 +14,4 @@ shared_memory.o: shared_memory.c shared_memory.h
 	gcc -c -std=c11 shared_memory.c
 
 clean:
-	rm *.o master slave
+	rm *.o master slave logfile.* cstest

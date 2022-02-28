@@ -1,3 +1,6 @@
+
+// Program by: YOUSEF LANGI 2/24/22
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -5,34 +8,37 @@
 #include <ctype.h>
 #include <string.h>
 #include <time.h>
-#include "config.h"
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <stdbool.h>
 #include <sys/wait.h>
-// #include "shared_memory.h"
+#include <errno.h>
+#include "config.h"
+
+extern int errno;
 
 int main(int argc, char *argv[])
 {
-    // char *memBlock = attachMemoryBlock(FILENAME, BLOCKSIZE);
-    // if (memBlock == NULL)
-    // {
-    //     fprintf(stderr, "error, no block2\n");
-    //     return 1;
-    // }
-    // else
-    // {
-    //     fprintf(stderr, "block2 OK\n");
-    //      fprintf(stderr, "block: %s\n", memBlock);
-    // }
-
     bool *choosing;
     int shmid_choosing;
     int *number;
     int shmid_number;
+    int max = 0;
+    int procNum = atoi(argv[1]);
+    
+    srand(time(NULL));
+    int sleepTime;
+    struct tm *time_info;
+    time_t current_time;
+    char timeString[9]; // space for "HH:MM:SS\0"
 
-    // shmem init
+    FILE *fptr;
+    char logFile[20];
+    snprintf(logFile, sizeof(char) * 20, "logfile.%i", procNum); // creating logfile.xx
+   
+
+    // receiving initialized shmem
     key_t key;
 
     key = ftok("./master.c", 0);
@@ -44,29 +50,13 @@ int main(int argc, char *argv[])
     choosing = shmat(shmid_choosing, NULL, 0);
     number = shmat(shmid_number, NULL, 0);
 
-
-    FILE *fptr;
-
-
-    int procNum = atoi(argv[1]);
-    int max = 0;
-
-    int childProc = getpid();
-    srand(time(NULL));
-    int sleepTime;
-    struct timespec now;
-    long curTime;
-
-    struct tm *time_info;
-    time_t current_time;
-    char timeString[9]; // space for "HH:MM:SS\0"
-    char logFile[10];
-    snprintf(logFile, sizeof(char) * 10, "logfile.%i", procNum); // creating logfile.xx
-   
+    if (shmid_number == -1)
+    {
+        fprintf(stderr, "%s", strerror(errno)); // incase of shmem error
+    }
 
     for (int i = 0; i < 5; i++)
     {
-       // fprintf(stderr, "proc %s\n", argv[1]);
         choosing[procNum] = true;
 
         for (int i = 0; i < MAXSLAVEPROC; i++)
@@ -78,7 +68,6 @@ int main(int argc, char *argv[])
         }
         number[i] = 1 + max;
 
-       // fprintf(stderr, "turnNum for process #%i = %i\n", procNum, number[i]);
         choosing[procNum] = false;
 
         for (int j = 0; j < MAXSLAVEPROC; j++)
@@ -119,6 +108,7 @@ int main(int argc, char *argv[])
         number[i] = 0;
     }
 
+    // detaching and removing smhmem
     shmdt(choosing);
     shmdt(number);
     shmctl(shmid_choosing, IPC_RMID, NULL);

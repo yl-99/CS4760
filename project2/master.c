@@ -1,10 +1,12 @@
+
+// Program by: YOUSEF LANGI 2/24/22
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <ctype.h>
 #include <string.h>
-#include "config.h"
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -13,42 +15,91 @@
 #include <errno.h>
 #include <time.h>
 #include <signal.h>
+#include "config.h"
 
-// #include "shared_memory.h"
-pid_t childpid;
 extern int errno;
-  bool *choosing;
-    int shmid_choosing;
-    int *number;
-    int shmid_number;
 
-void alarm_handler(int num)
+pid_t childpid;
+bool *choosing;
+int shmid_choosing;
+int *number;
+int shmid_number;
+int currentProc;
+bool alarmFlag = false;
+
+void alarm_handler(int num) // auto termination detection
 {
-    write(STDOUT_FILENO, "Terminating proccess\n", 13);
-            kill(childpid, 9);
-            wait(NULL);
-            shmctl(shmid_choosing, IPC_RMID, NULL);
-    shmctl(shmid_number, IPC_RMID, NULL);
-        
-}
-void cntrlC_handler(int num)
-{
-    write(STDOUT_FILENO, "\nProcess Killed\n", 13);
-    kill(childpid,9);
+    alarmFlag = true;
+
+    write(STDOUT_FILENO, "Terminating proccess", 22);
+
+    // removing shmem
     shmctl(shmid_choosing, IPC_RMID, NULL);
     shmctl(shmid_number, IPC_RMID, NULL);
+
+    char logFile[20];
+    snprintf(logFile, sizeof(char) * 20, "logfile.%i", currentProc); // creating logfile.xx
+    FILE *fptr;
+    fptr = fopen(logFile, "a");
+
+    struct tm *time_info;
+    time_t current_time;
+    char timeString[9]; // space for "HH:MM:SS\0"
+    time(&current_time);
+    time_info = localtime(&current_time); // time info for logfile.xx
+    strftime(timeString, sizeof(timeString), "%H:%M:%S", time_info);
+    fprintf(fptr, "%s Child process %i is killed\n", timeString, currentProc);
+
+    fclose(fptr);
+
+    kill(childpid, SIGTERM);
+    
+}
+
+void cntrlC_handler(int num) // ctrl^C detection
+{
+    alarmFlag = true;
+
+    write(STDOUT_FILENO, "\nInput key dectected: terminating proccess\n", 50);
+
+    // removing shmem
+    shmctl(shmid_choosing, IPC_RMID, NULL);
+    shmctl(shmid_number, IPC_RMID, NULL);
+
+    char logFile[20];
+    snprintf(logFile, sizeof(char) * 20, "logfile.%i", currentProc); // creating logfile.xx
+    FILE *fptr;
+    fptr = fopen(logFile, "a");
+
+    struct tm *time_info;
+    time_t current_time;
+    char timeString[9]; // space for "HH:MM:SS\0"
+    time(&current_time);
+    time_info = localtime(&current_time); // time info for logfile.xx
+    strftime(timeString, sizeof(timeString), "%H:%M:%S", time_info);
+    fprintf(fptr, "%s Child process %i is killed\n", timeString, currentProc);
+
+    fclose(fptr);
+
+    kill(childpid, SIGTERM);
 }
 
 int main(int argc, char *argv[])
 {
+    pid_t childpid;
+    int numOfSlaveProc, termTime;
+    int status = 0;
 
-    int numOfSlaveProc, termTime = 100;
+    FILE *fptr;
+    struct tm *time_info;
+    time_t current_time;
+    char timeString[9]; // space for "HH:MM:SS\0"
 
     if (argc <= 1) // no input detected from cmd line
     {
         fprintf(stderr, "%s: ", argv[0] += 2);
         perror("Error");
-        fprintf(stderr, "Try ./simplechain -h for help\n");
+        fprintf(stderr, "Try ./master -h for help\n");
         return 1;
     }
 
@@ -59,7 +110,7 @@ int main(int argc, char *argv[])
         {
 
         case 'h':
-            fprintf(stderr, "Usage: %s [-h] [-t maxTime numSlaveprocs] \n", argv[0]);
+            fprintf(stderr, "Usage: %s [-h] [-t numSlaveprocs maxTime] \n", argv[0]);
             return 1;
             break;
 
@@ -78,6 +129,10 @@ int main(int argc, char *argv[])
             {
                 termTime = atoi(argv[3]);
             }
+            else if (argv[3] == NULL)
+            {
+                termTime = TERMINATION_TIME;
+            }
             else
             {
                 perror("Error");
@@ -89,8 +144,8 @@ int main(int argc, char *argv[])
                 fprintf(stderr, "Number of slave processes exceed the allowed about. Slave processes reduced to maximum amount.\n");
                 numOfSlaveProc = MAXSLAVEPROC;
             }
-            fprintf(stderr, "slaveproc %i \n", numOfSlaveProc);
-            fprintf(stderr, "termtime %i \n", termTime);
+            fprintf(stderr, "Slave Processes %i \n", numOfSlaveProc);
+            fprintf(stderr, "Termination Time %i \n", termTime);
             break;
 
         default:
@@ -107,8 +162,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-  
-
     // shmem init
     key_t key;
 
@@ -116,46 +169,36 @@ int main(int argc, char *argv[])
     shmid_choosing = shmget(key, sizeof(choosing), 0644 | IPC_CREAT);
     choosing = shmat(shmid_choosing, NULL, 0);
     choosing[0] = false;
-    shmdt(choosing);
-    //fprintf(stderr, "%i\n", shmid_choosing);
+    shmdt(choosing); // detaching
 
     key = ftok("./master.c", 1);
     shmid_number = shmget(key, sizeof(number), 0644 | IPC_CREAT);
-    choosing = shmat(shmid_choosing, NULL, 0);
     number = shmat(shmid_number, NULL, 0);
     number[0] = 0;
-    shmdt(number);
-  //  fprintf(stderr, "%i", shmid_choosing);
+    shmdt(number); // detaching
 
-    if (shmid_number == -1)
+    if (shmid_number == -1) // incase of shmem error
     {
         fprintf(stderr, "%s", strerror(errno));
     }
 
-    FILE *fptr;
-    pid_t childpid;
-
-    int status = 0;
-
-    struct tm *time_info;
-    time_t current_time;
-    char timeString[9]; // space for "HH:MM:SS\0"
-
-    signal(SIGALRM, alarm_handler);
-    signal(SIGINT, cntrlC_handler);
-
+    fprintf(stderr, "Running processes...\n");
     for (int i = 0; i < numOfSlaveProc; i++)
     {
+        signal(SIGALRM, alarm_handler);
+        signal(SIGINT, cntrlC_handler);
+
         childpid = fork();
-        alarm(termTime);
+        alarm(termTime); // terminatoin alarm
 
         if (childpid == 0) // execution of child process
         {
+            currentProc = i;
             char slaveProcNumStr[5];
             sprintf(slaveProcNumStr, "%d", i);
 
-            char logFile[10];
-            snprintf(logFile, sizeof(char) * 10, "logfile.%i", i); // creating logfile.xx
+            char logFile[20];
+            snprintf(logFile, sizeof(char) * 20, "logfile.%i", i); // creating logfile.xx
 
             fptr = fopen(logFile, "a");
 
@@ -172,10 +215,15 @@ int main(int argc, char *argv[])
     for (int i = 0; i < numOfSlaveProc; i++) // waiting for child processes to finish
     {
         wait(NULL);
-        fprintf(stderr, "proc %i dne\n", i);
+        
     }
 
-    fprintf(stderr, "done\n");
+    fprintf(stderr, "Proccesses done\n");
+
+    
+    // removing shmem
     shmctl(shmid_choosing, IPC_RMID, NULL);
     shmctl(shmid_number, IPC_RMID, NULL);
+
+    
 }
