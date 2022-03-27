@@ -5,4 +5,4 @@ oss.o: oss.c
 	gcc -c -std=c11 oss.c
 
 clean:
-	rm *.o oss
+	rm *.o os
